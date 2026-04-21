@@ -3,12 +3,6 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                git 'https://github.com/mujeebqureshi95/jenkins_project.git'
-            }
-        }
-
         stage('Build') {
             steps {
                 sh 'mvn clean compile'
