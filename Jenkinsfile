@@ -2,86 +2,80 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven-3.9'   // Name configured in Jenkins
-        jdk 'JDK-17'        // Optional
+        maven 'Maven'   // Configure in Jenkins Global Tool Config
+    }
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to build')
     }
 
     environment {
-        GIT_REPO = "https://github.com/your-username/your-repo.git"
-        BRANCH = "main"
-        ARTIFACT_NAME = ""
-        DEPLOY_SERVER = "user@test-server-ip"
-        DEPLOY_PATH = "/opt/test-app"
+        APP_NAME = "hello-jenkins"
+        DEPLOY_USER = "ec2-user"
+        DEPLOY_HOST = "13.204.74.34"
+        DEPLOY_PATH = "/home/ec2-user/app"
     }
 
     stages {
 
         stage('Checkout Code') {
             steps {
-                git branch: "${BRANCH}", url: "${GIT_REPO}"
+                git branch: "${params.BRANCH_NAME}",
+                    url: 'https://github.com/mujeebqureshi95/jenkins_project.git'
             }
         }
 
-        stage('Build & Test') {
+        stage('Build') {
             steps {
-                sh 'mvn clean install'
+                sh 'mvn clean package'
             }
         }
 
-        stage('Verify Build Result') {
+        stage('Verify Output (Tests)') {
             steps {
-                script {
-                    if (currentBuild.currentResult == 'SUCCESS') {
-                        echo "Build Passed ✅"
-                    } else {
-                        error("Build Failed ❌")
-                    }
+                sh 'mvn test'
+            }
+            post {
+                success {
+                    echo "✅ Tests Passed"
+                }
+                failure {
+                    echo "❌ Tests Failed"
                 }
             }
         }
 
         stage('Archive Artifact') {
             steps {
-                script {
-                    // Dynamically pick jar from target folder
-                    def jarFile = sh(
-                        script: "ls target/*.jar | head -n 1",
-                        returnStdout: true
-                    ).trim()
-
-                    env.ARTIFACT_NAME = jarFile
-                    echo "Archiving: ${jarFile}"
-                }
-
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
 
         stage('Deploy to Test Server') {
             steps {
-                script {
-                    echo "Deploying ${env.ARTIFACT_NAME} to ${DEPLOY_SERVER}"
-                }
-
-                sshagent (credentials: ['ssh-cred-id']) {
-                    sh """
-                        scp ${env.ARTIFACT_NAME} ${DEPLOY_SERVER}:${DEPLOY_PATH}/
-                        ssh ${DEPLOY_SERVER} '
-                            pkill -f java || true
-                            nohup java -jar ${DEPLOY_PATH}/$(basename ${env.ARTIFACT_NAME}) > app.log 2>&1 &
-                        '
-                    """
+                sshagent(['ec2-ssh-key']) {  // Jenkins credential ID
+                    sh '''
+                    scp -o StrictHostKeyChecking=no target/*.jar ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/app.jar
+                    
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << EOF
+                        pkill -f app.jar || true
+                        nohup java -jar ${DEPLOY_PATH}/app.jar > app.log 2>&1 &
+                    EOF
+                    '''
                 }
             }
         }
     }
 
     post {
+        always {
+            echo "Pipeline execution completed."
+        }
         success {
-            echo "Pipeline completed successfully 🎉"
+            echo "🎉 Build + Deploy Successful"
         }
         failure {
-            echo "Pipeline failed 🚨"
+            echo "🔥 Pipeline Failed"
         }
     }
 }
