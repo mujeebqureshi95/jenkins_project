@@ -53,14 +53,12 @@ pipeline {
 
         stage('Deploy to Test Server') {
             steps {
-                sshagent(['ec2-ssh-key']) {  // Jenkins credential ID
+                sshagent(['ec2-ssh-key']) {
                     sh '''
                     scp -o StrictHostKeyChecking=no target/*.jar ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/app.jar
                     
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << EOF
-                        pkill -f app.jar || true
-                        nohup java -jar ${DEPLOY_PATH}/app.jar > app.log 2>&1 &
-                    EOF
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "pkill -f app.jar || true"
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "nohup java -jar ${DEPLOY_PATH}/app.jar > app.log 2>&1 &"
                     '''
                 }
             }
