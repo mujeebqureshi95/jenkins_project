@@ -55,10 +55,16 @@ pipeline {
             steps {
                 sshagent(['ec2-ssh-key']) {
                     sh '''
+                    set -e
+                    
                     scp -o StrictHostKeyChecking=no target/*.jar ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/app.jar
                     
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "pkill -f app.jar || true"
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "nohup java -jar ${DEPLOY_PATH}/app.jar > app.log 2>&1 &"
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        set +e
+                        pkill -f app.jar
+                        set -e
+                        nohup java -jar ${DEPLOY_PATH}/app.jar > ${DEPLOY_PATH}/app.log 2>&1 &
+                    "
                     '''
                 }
             }
