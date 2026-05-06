@@ -5,10 +5,6 @@ pipeline {
         maven 'Maven'   // Configure in Jenkins Global Tool Config
     }
 
-    parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to build')
-    }
-
     environment {
         APP_NAME = "hello-jenkins"
         DEPLOY_USER = "ec2-user"
