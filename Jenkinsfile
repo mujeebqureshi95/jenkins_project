@@ -11,9 +11,9 @@ pipeline {
 
     environment {
         APP_NAME = "hello-jenkins"
-        DEPLOY_USER = "ec2-user"
-        DEPLOY_HOST = "13.204.74.34"
-        DEPLOY_PATH = "/home/ec2-user/app"
+        DEPLOY_USER = "jenkins"
+        DEPLOY_HOST = "10.16.149.169"
+        DEPLOY_PATH = "/tmp/maven"
     }
 
     stages {
@@ -53,7 +53,7 @@ pipeline {
 
         stage('Deploy to Test Server') {
             steps {
-                sshagent(['ec2-ssh-key']) {
+                sshagent(['ssh-key']) {
                     sh '''
                     set -e
                     
