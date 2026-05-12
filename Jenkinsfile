@@ -12,7 +12,7 @@ pipeline {
     environment {
         APP_NAME = "hello-jenkins"
         DEPLOY_USER = "jenkins"
-        DEPLOY_HOST = "10.16.149.169"
+        DEPLOY_HOST = "10.16.123.237"
         DEPLOY_PATH = "/tmp/maven"
     }
 
@@ -52,34 +52,20 @@ pipeline {
         }
 
         stage('Deploy to Test Server') {
-    steps {
-        sshagent(['jenkins']) {
-
-            sh '''
-            set -e
-
-            scp -o StrictHostKeyChecking=no \
-            target/hello-jenkins-1.0-SNAPSHOT.jar \
-            jenkins@10.16.149.169:/tmp/maven/app.jar
-
-            ssh -o StrictHostKeyChecking=no jenkins@10.16.149.169 << 'EOF'
-
-                mkdir -p /tmp/maven
-
-                pkill -f app.jar || true
-
-                nohup java -jar /tmp/maven/app.jar \
-                > /tmp/maven/app.log 2>&1 < /dev/null &
-
-                disown || true
-
-                exit 0
-
-EOF
-            '''
+            steps {
+                sshagent(['ssh-key']) {  // Jenkins credential ID
+                    sh '''
+                    scp -o StrictHostKeyChecking=no target/*.jar ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/app.jar
+                    
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << EOF
+                        pkill -f app.jar || true
+                        nohup java -jar ${DEPLOY_PATH}/app.jar > app.log 2>&1 &
+                    EOF
+                    '''
+                }
+            }
         }
     }
-}
 
     post {
         always {
