@@ -52,24 +52,34 @@ pipeline {
         }
 
         stage('Deploy to Test Server') {
-            steps {
-                sshagent(['ssh-key']) {
-                    sh '''
-                    set -e
-                    
-                    scp -o StrictHostKeyChecking=no target/*.jar ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/app.jar
-                    
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                        set +e
-                        pkill -f app.jar
-                        set -e
-                        nohup java -jar ${DEPLOY_PATH}/app.jar > ${DEPLOY_PATH}/app.log 2>&1 &
-                    "
-                    '''
-                }
-            }
+    steps {
+        sshagent(['jenkins']) {
+
+            sh '''
+            set -e
+
+            scp -o StrictHostKeyChecking=no \
+            target/hello-jenkins-1.0-SNAPSHOT.jar \
+            jenkins@10.16.149.169:/tmp/maven/app.jar
+
+            ssh -o StrictHostKeyChecking=no jenkins@10.16.149.169 << 'EOF'
+
+                mkdir -p /tmp/maven
+
+                pkill -f app.jar || true
+
+                nohup java -jar /tmp/maven/app.jar \
+                > /tmp/maven/app.log 2>&1 < /dev/null &
+
+                disown || true
+
+                exit 0
+
+EOF
+            '''
         }
     }
+}
 
     post {
         always {
