@@ -59,7 +59,7 @@ pipeline {
                     
                     ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << EOF
                         pkill -f app.jar || true
-                        nohup java -jar ${DEPLOY_PATH}/app.jar > app.log 2>&1 &
+                        java -jar ${DEPLOY_PATH}/app.jar > app.log 2>&1 &
                     EOF
                     '''
                 }
