@@ -73,12 +73,12 @@ pipeline {
                     sh '''
 		    echo "===== CREATING REMOTE BUILD DIRECTORY ====="
                     
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST}"
+            ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST}"
 			mkdir -p ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
 			chmod 755 ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
                     "
                     
-                    echo "===== COPYING ARTIFACT ====="
+            echo "===== COPYING ARTIFACT ====="
 
 		    scp -o StrictHostKeyChecking=no target/*.jar \
                     ${DEPLOY_USER}@${DEPLOY_HOST}:${BASE_DEPLOY_PATH}/${BUILD_VERSION}/${APP_NAME}.jar
