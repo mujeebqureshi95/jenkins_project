@@ -13,7 +13,8 @@ pipeline {
         APP_NAME = "hello-jenkins"
         DEPLOY_USER = "jenkins"
         DEPLOY_HOST = "10.16.123.237"
-        DEPLOY_PATH = "/tmp/maven"
+        BASE_DEPLOY_PATH = "/tmp/maven"
+	BUILD_VERSION= "${BUILD_NUMBER}"
     }
 
     stages {
@@ -45,7 +46,21 @@ pipeline {
             }
         }
 
-        stage('Archive Artifact') {
+        stage('Debug Environment'){
+	    steps{
+	      sh'''
+		echo"===== DEBUG INFO ====="
+		whoami
+		pwd
+		ls -la
+		java -version
+		mvn -version
+		ls -la target/
+	      """
+	    }
+	}
+	
+	stage('Archive Artifact') {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
@@ -54,14 +69,43 @@ pipeline {
         stage('Deploy to Test Server') {
             steps {
                 sshagent(['ssh-key']) {  // Jenkins credential ID
+
                     sh '''
-                    scp -o StrictHostKeyChecking=no target/*.jar ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/app.jar
+		    echo "===== CREATING REMOTE BUILD DIRECTORY ====="
                     
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << EOF
-                        pkill -f app.jar || true
-                        java -jar ${DEPLOY_PATH}/app.jar > app.log 2>&1 &
-                    EOF
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST}"
+			mkdir -p ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
+			chmod 755 ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
+                    "
+                    
+                    echo "===== COPYING ARTIFACT ====="
+
+		    scp -o StrictHostKeyChecking=no target/*.jar \
+                    ${DEPLOY_USER}@${DEPLOY_HOST}:${BASE_DEPLOY_PATH}/${BUILD_VERSION}/${APP_NAME}.jar
+
+                    echo "===== VERIFYING FILE ON REMOTE SERVER ====="
+
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        ls -lh ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
+                    "
+
+                    echo "===== STOPPING OLD APPLICATION ====="
+
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        pkill -f ${APP_NAME}.jar || true
+                    "
+
+                    echo "===== STARTING NEW APPLICATION ====="
+
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        ln -sfn ${BASE_DEPLOY_PATH}/${BUILD_VERSION}/${APP_NAME}.jar \
+                        ${BASE_DEPLOY_PATH}/current.jar
+
+                        nohup java -jar ${BASE_DEPLOY_PATH}/current.jar \
+                        > ${BASE_DEPLOY_PATH}/app.log 2>&1 &
+                    "
                     '''
+
                 }
             }
         }
