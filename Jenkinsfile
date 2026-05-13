@@ -68,7 +68,7 @@ pipeline {
 
         stage('Deploy to Test Server') {
             steps {
-                sshagent(['ec2-ssh-key']) {
+                sshagent(['ssh-key']) {
 
                     sh '''
                     echo "===== CREATING REMOTE BUILD DIRECTORY ====="
