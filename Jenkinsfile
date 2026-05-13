@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven'   // Configure in Jenkins Global Tool Config
+        maven 'M1'
     }
 
     parameters {
@@ -11,10 +11,9 @@ pipeline {
 
     environment {
         APP_NAME = "hello-jenkins"
-        DEPLOY_USER = "jenkins"
-        DEPLOY_HOST = "10.16.123.237"
-        BASE_DEPLOY_PATH = "/tmp/maven"
-		BUILD_VERSION= "${BUILD_NUMBER}"
+        DEPLOY_USER = "ec2-user"
+        DEPLOY_HOST = "43.204.28.223"
+        DEPLOY_PATH = "/home/ec2-user/deployments"
     }
 
     stages {
@@ -22,11 +21,11 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 git branch: "${params.BRANCH_NAME}",
-                url: 'https://github.com/mujeebqureshi95/jenkins_project.git'
+                    url: 'https://github.com/mujeebqureshi95/jenkins_project.git'
             }
         }
 
-        stage('Build') {
+        stage('Build Application') {
             steps {
                 sh 'mvn clean package'
             }
@@ -46,20 +45,6 @@ pipeline {
             }
         }
 
-        stage('Debug Environment') {
-            steps {
-                sh '''
-                    echo "===== DEBUG INFO ====="
-                    whoami
-                    pwd
-                    ls -la
-                    java -version
-                    mvn -version
-                    ls -la target/
-                '''
-            }
-        }
-
         stage('Archive Artifact') {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
@@ -68,43 +53,35 @@ pipeline {
 
         stage('Deploy to Test Server') {
             steps {
-                sshagent(['ssh-key']) {
+                sshagent(credentials: ['ec2-ssh-key']) {
 
                     sh '''
-                    echo "===== CREATING REMOTE BUILD DIRECTORY ====="
+                    echo "Creating deployment directory on test server..."
 
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                        mkdir -p ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
-                        chmod 755 ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
-                    "
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} '
+                        mkdir -p ${DEPLOY_PATH}
+                    '
 
-                    echo "===== COPYING ARTIFACT ====="
+                    echo "Copying JAR to test server..."
 
                     scp -o StrictHostKeyChecking=no target/*.jar \
-                    ${DEPLOY_USER}@${DEPLOY_HOST}:${BASE_DEPLOY_PATH}/${BUILD_VERSION}/${APP_NAME}.jar
+                    ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/app.jar
 
-                    echo "===== VERIFYING FILE ON REMOTE SERVER ====="
+                    echo "Stopping old application if running..."
 
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                        ls -lh ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
-                    "
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} '
+                        pkill -f app.jar || true
+                    '
 
-                    echo "===== STOPPING OLD APPLICATION ====="
+                    echo "Starting new application..."
 
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                        pkill -f ${APP_NAME}.jar || true
-                    "
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} '
+                        nohup java -jar ${DEPLOY_PATH}/app.jar > ${DEPLOY_PATH}/app.log 2>&1 &
+                    '
 
-                    echo "===== STARTING NEW APPLICATION ====="
+                    echo "Deployment Completed Successfully"
 
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                        ln -sfn ${BASE_DEPLOY_PATH}/${BUILD_VERSION}/${APP_NAME}.jar \
-                        ${BASE_DEPLOY_PATH}/current.jar
-
-                        nohup java -jar ${BASE_DEPLOY_PATH}/current.jar \
-                        > ${BASE_DEPLOY_PATH}/app.log 2>&1 &
-                    "
-                    '''
+                    """
                 }
             }
         }
