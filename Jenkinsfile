@@ -14,7 +14,7 @@ pipeline {
         DEPLOY_USER = "jenkins"
         DEPLOY_HOST = "10.16.123.237"
         BASE_DEPLOY_PATH = "/tmp/maven"
-	BUILD_VERSION= "${BUILD_NUMBER}"
+		BUILD_VERSION= "${BUILD_NUMBER}"
     }
 
     stages {
@@ -22,7 +22,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 git branch: "${params.BRANCH_NAME}",
-                    url: 'https://github.com/mujeebqureshi95/jenkins_project.git'
+                url: 'https://github.com/mujeebqureshi95/jenkins_project.git'
             }
         }
 
@@ -32,7 +32,7 @@ pipeline {
             }
         }
 
-        stage('Verify Output (Tests)') {
+        stage('Verify Output') {
             steps {
                 sh 'mvn test'
             }
@@ -46,21 +46,21 @@ pipeline {
             }
         }
 
-        stage('Debug Environment'){
-	    steps{
-	      sh'''
-		echo"===== DEBUG INFO ====="
-		whoami
-		pwd
-		ls -la
-		java -version
-		mvn -version
-		ls -la target/
-	      """
-	    }
-	}
-	
-	stage('Archive Artifact') {
+        stage('Debug Environment') {
+            steps {
+                sh '''
+                    echo "===== DEBUG INFO ====="
+                    whoami
+                    pwd
+                    ls -la
+                    java -version
+                    mvn -version
+                    ls -la target/
+                '''
+            }
+        }
+
+        stage('Archive Artifact') {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
@@ -68,19 +68,19 @@ pipeline {
 
         stage('Deploy to Test Server') {
             steps {
-                sshagent(['ssh-key']) {  // Jenkins credential ID
+                sshagent(['ec2-ssh-key']) {
 
                     sh '''
-		    echo "===== CREATING REMOTE BUILD DIRECTORY ====="
-                    
-            ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST}"
-			mkdir -p ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
-			chmod 755 ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
-                    "
-                    
-            echo "===== COPYING ARTIFACT ====="
+                    echo "===== CREATING REMOTE BUILD DIRECTORY ====="
 
-		    scp -o StrictHostKeyChecking=no target/*.jar \
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        mkdir -p ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
+                        chmod 755 ${BASE_DEPLOY_PATH}/${BUILD_VERSION}
+                    "
+
+                    echo "===== COPYING ARTIFACT ====="
+
+                    scp -o StrictHostKeyChecking=no target/*.jar \
                     ${DEPLOY_USER}@${DEPLOY_HOST}:${BASE_DEPLOY_PATH}/${BUILD_VERSION}/${APP_NAME}.jar
 
                     echo "===== VERIFYING FILE ON REMOTE SERVER ====="
@@ -105,19 +105,21 @@ pipeline {
                         > ${BASE_DEPLOY_PATH}/app.log 2>&1 &
                     "
                     '''
-
                 }
             }
         }
     }
 
     post {
+
         always {
             echo "Pipeline execution completed."
         }
+
         success {
-            echo "🎉 Build + Deploy Successful"
+            echo "🎉 Build and Deployment Successful"
         }
+
         failure {
             echo "🔥 Pipeline Failed"
         }
