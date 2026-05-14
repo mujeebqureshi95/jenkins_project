@@ -92,7 +92,7 @@ pipeline {
         stage('Deploy To Test Server') {
             steps {
 
-                sshagent(credentials: ['ec2-user']) {
+                sshagent(credentials: ['ec2-ssh-key']) {
 
                     sh '''
                         SERVER="ec2-user@13.232.72.145"
