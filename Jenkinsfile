@@ -96,15 +96,13 @@ pipeline {
 
                     sh script: """
                     #!/bin/bash
-                    set -eux
+                    set -ux
 
                     SERVER="${REMOTE_USER}@${REMOTE_HOST}"
                     DIR="${REMOTE_DIR}"
 
                     ssh -o StrictHostKeyChecking=no \$SERVER "mkdir -p \$DIR"
                     scp -o StrictHostKeyChecking=no target/${JAR_NAME} \$SERVER:\$DIR/app.jar
-                    ssh \$SERVER "pkill -f app.jar || true"
-                    ssh \$SERVER "nohup java -jar \$DIR/app.jar > \$DIR/app.log 2>&1 &"
                     """
                 }
             }
