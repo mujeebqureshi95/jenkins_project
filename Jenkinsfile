@@ -2,45 +2,78 @@ pipeline {
     agent any
 
     tools {
-        maven 'M1'
+        maven 'Maven'
+    }
+
+    parameters {
+        string(
+            name: 'BRANCH_NAME',
+            defaultValue: 'main',
+            description: 'GitHub branch to build'
+        )
     }
 
     environment {
-        GIT_REPO = "https://github.com/mujeebqureshi95/jenkins_project.git"
-        BRANCH = "main"
-        DEPLOY_SERVER = "ec2-user@13.207.2.148"
-        DEPLOY_PATH = "/home/ec2-user/deployments"
+        APP_NAME = "hello-jenkins"
+        REMOTE_USER = "ec2-user"
+        REMOTE_HOST = "13.232.72.145"
+        REMOTE_DIR  = "/home/ec2-user/deployments"
+        JAR_NAME = "hello-jenkins-1.0-SNAPSHOT.jar"
     }
 
     stages {
 
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
         stage('Checkout Code') {
             steps {
-                git branch: "${BRANCH}", url: "${GIT_REPO}"
+                git branch: "${params.BRANCH_NAME}",
+                url: 'https://github.com/mujeebqureshi95/jenkins_project.git'
             }
         }
 
-        stage('Build & Test') {
+        stage('Verify Java & Maven') {
             steps {
-                sh 'mvn clean install'
+                sh 'java -version'
+                sh 'mvn -version'
             }
         }
 
-        stage('Locate Artifact') {
+        stage('Build Application') {
             steps {
-                script {
-                    // Automatically find the JAR file
-                    def jarFile = sh(
-                        script: "find target -type f -name '*.jar' ! -name '*original*.jar' | head -n 1",
-                        returnStdout: true
-                    ).trim()
+                sh 'mvn clean package'
+            }
+        }
 
-                    if (!jarFile) {
-                        error("No JAR file found in target directory ❌")
-                    }
+        stage('Verify Output') {
+            steps {
+                sh '''
+                    if [ -f target/${JAR_NAME} ]; then
+                        echo "JAR file generated successfully"
+                    else
+                        echo "JAR generation failed"
+                        exit 1
+                    fi
+                '''
+            }
+        }
 
-                    env.JAR_FILE = jarFile
-                    echo "Detected artifact: ${env.JAR_FILE}"
+        stage('Run Tests') {
+            steps {
+                sh 'mvn test'
+            }
+
+            post {
+                success {
+                    echo 'Tests Passed'
+                }
+
+                failure {
+                    echo 'Tests Failed'
                 }
             }
         }
@@ -48,39 +81,53 @@ pipeline {
         stage('Archive Artifact') {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+
+                sh '''
+                    mkdir -p /var/lib/jenkins/build-artifacts
+                    cp target/*.jar /var/lib/jenkins/build-artifacts/
+                '''
             }
         }
 
-        stage('Deploy to Test Server') {
+        stage('Deploy To Test Server') {
             steps {
-                sshagent (credentials: ['ec2-ssh-key']) {
-                    sh """
-                        echo "Copying ${env.JAR_FILE} to ${DEPLOY_SERVER}"
-                        
-                        scp ${env.JAR_FILE} ${DEPLOY_SERVER}:${DEPLOY_PATH}/
 
-                        ssh ${DEPLOY_SERVER} '
-                            echo "Stopping existing app..."
-                            pkill -f java || true
+                sshagent(credentials: ['ec2-ssh-key']) {
 
-                            echo "Starting new app..."
-                            nohup java -jar ${DEPLOY_PATH}/$(basename ${env.JAR_FILE}) > app.log 2>&1 &
-                        '
-                    """
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "
+                            mkdir -p ${REMOTE_DIR}
+                        "
+
+                        scp -o StrictHostKeyChecking=no \
+                        target/${JAR_NAME} \
+                        ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/app.jar
+
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "
+
+                            pkill -f app.jar || true
+
+                            nohup java -jar ${REMOTE_DIR}/app.jar \
+                            > ${REMOTE_DIR}/app.log 2>&1 &
+                        "
+                    '''
                 }
             }
         }
     }
 
     post {
+
         success {
-            echo "Pipeline completed successfully ✅"
+            echo 'Pipeline executed successfully'
         }
+
         failure {
-            echo "Pipeline failed ❌"
+            echo 'Pipeline failed'
         }
+
         always {
-            junit 'target/surefire-reports/*.xml'
+            cleanWs()
         }
     }
 }
