@@ -95,7 +95,7 @@ pipeline {
                 sshagent(credentials: ['ec2-ssh-key']) {
 
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "
+                        ssh ${REMOTE_USER}@${REMOTE_HOST} "
                             mkdir -p ${REMOTE_DIR}
                         "
 
