@@ -15,7 +15,7 @@ pipeline {
 
     environment {
         APP_NAME = "hello-jenkins"
-        REMOTE_USER = "ec2-user"
+        REMOTE_USER = "root"
         REMOTE_HOST = "13.232.72.145"
         REMOTE_DIR  = "/home/ec2-user/deployments"
         JAR_NAME = "hello-jenkins-1.0-SNAPSHOT.jar"
