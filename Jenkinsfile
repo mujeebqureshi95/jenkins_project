@@ -94,29 +94,18 @@ pipeline {
 
                 sshagent(credentials: ['ec2-ssh-key']) {
 
-                    sh '''
-                        set -eux
+                    sh script: """
+                    #!/bin/bash
+                    set -eux
 
-                        SERVER="${REMOTE_USER}@${REMOTE_HOST}"
-                        DIR="${REMOTE_DIR}"
+                    SERVER="${REMOTE_USER}@${REMOTE_HOST}"
+                    DIR="${REMOTE_DIR}"
 
-                        echo "Creating directory..."
-                        ssh -o StrictHostKeyChecking=no $SERVER "mkdir -p $DIR"
-
-                        echo "Copying JAR..."
-                        scp -o StrictHostKeyChecking=no target/${JAR_NAME} $SERVER:$DIR/app.jar
-
-                        echo "Verifying file..."
-                        ssh $SERVER "ls -l $DIR"
-
-                        echo "Stopping old app..."
-                        ssh $SERVER "pkill -f app.jar || true"
-
-                        echo "Starting new app..."
-                        ssh $SERVER "nohup java -jar $DIR/app.jar > $DIR/app.log 2>&1 &"
-
-                        echo "Deployment completed"
-                    '''
+                    ssh -o StrictHostKeyChecking=no \$SERVER "mkdir -p \$DIR"
+                    scp -o StrictHostKeyChecking=no target/${JAR_NAME} \$SERVER:\$DIR/app.jar
+                    ssh \$SERVER "pkill -f app.jar || true"
+                    ssh \$SERVER "nohup java -jar \$DIR/app.jar > \$DIR/app.log 2>&1 &"
+                    """
                 }
             }
         }
