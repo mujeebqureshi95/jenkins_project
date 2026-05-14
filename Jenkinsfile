@@ -15,7 +15,7 @@ pipeline {
 
     environment {
         APP_NAME = "hello-jenkins"
-        REMOTE_USER = "root"
+        REMOTE_USER = "ec2-user"
         REMOTE_HOST = "13.232.72.145"
         REMOTE_DIR  = "/home/ec2-user/deployments"
         JAR_NAME = "hello-jenkins-1.0-SNAPSHOT.jar"
@@ -92,10 +92,11 @@ pipeline {
         stage('Deploy To Test Server') {
             steps {
 
-                sshagent(credentials: ['ec2-ssh-key']) {
+                sshagent(credentials: ['ec2-user']) {
 
                     sh '''
-                        ssh ${REMOTE_USER}@${REMOTE_HOST} "
+                        SERVER="ec2-user@13.232.72.145"
+                        ssh -o StrictHostKeyChecking=no\$SERVER "
                             mkdir -p ${REMOTE_DIR}
                         "
 
