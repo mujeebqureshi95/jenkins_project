@@ -5,14 +5,10 @@ pipeline {
         maven 'M1'
     }
 
-    parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to build')
-    }
-
     environment {
-        APP_NAME = "hello-jenkins"
-        DEPLOY_USER = "ec2-user"
-        DEPLOY_HOST = "43.204.28.223"
+        GIT_REPO = "https://github.com/mujeebqureshi95/jenkins_project.git"
+        BRANCH = "main"
+        DEPLOY_SERVER = "ec2-user@13.207.2.148"
         DEPLOY_PATH = "/home/ec2-user/deployments"
     }
 
@@ -20,27 +16,31 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                git branch: "${params.BRANCH_NAME}",
-                    url: 'https://github.com/mujeebqureshi95/jenkins_project.git'
+                git branch: "${BRANCH}", url: "${GIT_REPO}"
             }
         }
 
-        stage('Build Application') {
+        stage('Build & Test') {
             steps {
-                sh 'mvn clean package'
+                sh 'mvn clean install'
             }
         }
 
-        stage('Verify Output') {
+        stage('Locate Artifact') {
             steps {
-                sh 'mvn test'
-            }
-            post {
-                success {
-                    echo "✅ Tests Passed"
-                }
-                failure {
-                    echo "❌ Tests Failed"
+                script {
+                    // Automatically find the JAR file
+                    def jarFile = sh(
+                        script: "find target -type f -name '*.jar' ! -name '*original*.jar' | head -n 1",
+                        returnStdout: true
+                    ).trim()
+
+                    if (!jarFile) {
+                        error("No JAR file found in target directory ❌")
+                    }
+
+                    env.JAR_FILE = jarFile
+                    echo "Detected artifact: ${env.JAR_FILE}"
                 }
             }
         }
@@ -53,34 +53,19 @@ pipeline {
 
         stage('Deploy to Test Server') {
             steps {
-                sshagent(credentials: ['ec2-ssh-key']) {
+                sshagent (credentials: ['ec2-ssh-key']) {
+                    sh """
+                        echo "Copying ${env.JAR_FILE} to ${DEPLOY_SERVER}"
+                        
+                        scp ${env.JAR_FILE} ${DEPLOY_SERVER}:${DEPLOY_PATH}/
 
-                    sh '''
-                    echo "Creating deployment directory on test server..."
+                        ssh ${DEPLOY_SERVER} '
+                            echo "Stopping existing app..."
+                            pkill -f java || true
 
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} '
-                        mkdir -p ${DEPLOY_PATH}
-                    '
-
-                    echo "Copying JAR to test server..."
-
-                    scp -o StrictHostKeyChecking=no target/*.jar \
-                    ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/app.jar
-
-                    echo "Stopping old application if running..."
-
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} '
-                        pkill -f app.jar || true
-                    '
-
-                    echo "Starting new application..."
-
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} '
-                        nohup java -jar ${DEPLOY_PATH}/app.jar > ${DEPLOY_PATH}/app.log 2>&1 &
-                    '
-
-                    echo "Deployment Completed Successfully"
-
+                            echo "Starting new app..."
+                            nohup java -jar ${DEPLOY_PATH}/$(basename ${env.JAR_FILE}) > app.log 2>&1 &
+                        '
                     """
                 }
             }
@@ -88,17 +73,14 @@ pipeline {
     }
 
     post {
-
-        always {
-            echo "Pipeline execution completed."
-        }
-
         success {
-            echo "🎉 Build and Deployment Successful"
+            echo "Pipeline completed successfully ✅"
         }
-
         failure {
-            echo "🔥 Pipeline Failed"
+            echo "Pipeline failed ❌"
+        }
+        always {
+            junit 'target/surefire-reports/*.xml'
         }
     }
 }
